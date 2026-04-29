@@ -2,7 +2,7 @@
 
 This repository contains the configuration, scripts, and deployment files for my homelab environment, built around a Dell Precision 7910 Workstation and Proxmox.
 
-For a detailed walkthrough of my physical setup and hardware, visit: [mayankpadhi.com/#/setup](https://www.mayankpadhi.com/#/setup)
+For a detailed walkthrough of my physical setup and hardware, visit: [Blog](https://blog.mayankpadhi.com/series/home-lab) and [mayankpadhi.com/#/setup](https://www.mayankpadhi.com/#/setup)
 
 ## Architecture Diagrams
 
