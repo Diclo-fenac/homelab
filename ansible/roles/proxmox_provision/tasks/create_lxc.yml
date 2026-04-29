@@ -1,0 +1,66 @@
+# LXC Container Provisioning
+# Creates LXC containers on Proxmox via API
+---
+
+- name: "Debug: Display LXC configuration"
+  debug:
+    msg: |
+      Creating LXC container:
+        - Container ID: {{ container_id }}
+        - Hostname: {{ container_hostname }}
+        - OS: {{ container_ostype }} {{ container_osversion }}
+        - Memory: {{ container_memory }}MB
+        - Cores: {{ container_cores }}
+        - Storage: {{ container_storage }}
+        - Root FS Size: {{ container_rootfs_size }}
+
+- name: "Create LXC container via Proxmox API"
+  proxmox:
+    proxmox_default_behavior: "no_defaults"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ container_id }}"
+    hostname: "{{ container_hostname }}"
+    ostype: "{{ container_ostype }}"
+    osversion: "{{ container_osversion }}"
+    memory: "{{ container_memory }}"
+    cores: "{{ container_cores }}"
+    swap: "{{ container_swap | default(512) }}"
+    storage: "{{ container_storage }}"
+    disk: "{{ container_rootfs_size }}"
+    netif:
+      net0: "name=eth0,bridge=vmbr0,ip=192.168.1.0/24,gw=192.168.1.1"
+    unprivileged: "{{ lxc_unprivileged | default(1) }}"
+    features: "nesting={{ lxc_nesting | default(1) }},keyctl={{ lxc_keyctl | default(1) }}"
+    timeout: 600
+    state: present
+  register: lxc_creation_result
+  until: lxc_creation_result.status == 'ok'
+  retries: 3
+  delay: 10
+
+- name: "Display LXC creation result"
+  debug:
+    var: lxc_creation_result
+
+- name: "Start LXC container"
+  proxmox:
+    proxmox_default_behavior: "no_defaults"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ container_id }}"
+    state: started
+  register: lxc_start_result
+
+- name: "Wait for LXC container to start"
+  pause:
+    seconds: 10
+
+- name: "Verify LXC container is running"
+  shell: "pct status {{ container_id }}"
+  register: lxc_status
+  until: "'running' in lxc_status.stdout"
+  retries: 30
+  delay: 5
+
+- name: "Display LXC status"
+  debug:
+    var: lxc_status.stdout

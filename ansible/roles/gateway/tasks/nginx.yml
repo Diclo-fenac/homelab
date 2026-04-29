@@ -1,0 +1,17 @@
+# roles/gateway/tasks/nginx.yml
+---
+- name: "Install Nginx"
+  apt:
+    name: nginx
+    state: present
+  become: yes
+
+- name: "Start and enable Nginx"
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  become: yes
+
+# Note: In a real setup, you would template out /etc/nginx/nginx.conf 
+# and your vhosts based on variables in inventory/group_vars/series_1_gateway.yml

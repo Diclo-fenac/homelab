@@ -1,0 +1,119 @@
+# Series 2: Observability LXC Playbook
+# Prometheus + Grafana + Beszel monitoring stack
+---
+
+- name: "Series 2: Deploy Observability LXC"
+  hosts: series_2_observability
+  serial: 1
+  vars:
+    ansible_user: root
+
+  pre_tasks:
+    - name: "Display Series 2 deployment header"
+      debug:
+        msg: |
+          ╔═════════════════════════════════════════════════════════════╗
+          ║     SERIES 2: OBSERVABILITY (Prometheus + Grafana)          ║
+          ║     Monitoring the health of your entire lab                ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Container ID: {{ container_id }}
+          Hostname: {{ container_hostname }}
+          Memory: {{ container_memory }}MB
+          Cores: {{ container_cores }}
+          IP: {{ ansible_host }}
+
+  roles:
+    # Step 1: Provision the LXC container via Proxmox API
+    - role: proxmox_provision
+      tags: [provision]
+
+    # Step 2: Common setup (SSH, packages, networking)
+    - role: common
+      tags: [common]
+
+    # Step 3: Install Prometheus for metrics collection
+    - role: observability
+      vars:
+        observability_component: prometheus
+      tags: [observability, prometheus]
+
+    # Step 4: Install Grafana for visualization
+    - role: observability
+      vars:
+        observability_component: grafana
+      tags: [observability, grafana]
+
+    # Step 5: Install Beszel agent for system monitoring
+    - role: observability
+      vars:
+        observability_component: beszel
+      tags: [observability, beszel]
+
+    # Step 6: Install Node Exporter for detailed metrics
+    - role: observability
+      vars:
+        observability_component: node_exporter
+      tags: [observability, node_exporter]
+
+    # Step 7: Security hardening
+    - role: security
+      tags: [security, hardening]
+
+  post_tasks:
+    - name: "Verify Prometheus is running"
+      systemd:
+        name: prometheus
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    - name: "Verify Grafana is running"
+      systemd:
+        name: grafana-server
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    - name: "Check Prometheus targets"
+      uri:
+        url: "http://127.0.0.1:9090/api/v1/targets"
+        method: GET
+      register: prometheus_targets
+      ignore_errors: yes
+
+    - name: "Display observability status"
+      shell: |
+        echo "=== OBSERVABILITY STATUS ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "IP Address: $(hostname -I)" && \
+        echo "Prometheus Status: $(systemctl is-active prometheus)" && \
+        echo "Prometheus URL: http://{{ ansible_host }}:9090" && \
+        echo "Grafana Status: $(systemctl is-active grafana-server)" && \
+        echo "Grafana URL: http://{{ ansible_host }}:3000" && \
+        echo "Beszel Status: $(systemctl is-active beszel)" && \
+        echo "Node Exporter Status: $(systemctl is-active node-exporter)"
+      register: observability_status
+      ignore_errors: yes
+
+    - name: "Display deployment summary"
+      debug:
+        msg: |
+          {{ observability_status.stdout }}
+          
+          ╔═════════════════════════════════════════════════════════════╗
+          ║        SERIES 2 DEPLOYMENT COMPLETE                         ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Observability Stack Deployed:
+          - Prometheus: Metrics collection & storage
+          - Grafana: Visualization & dashboards
+          - Beszel: System health monitoring
+          - Node Exporter: Hardware metrics
+          
+          Access Points:
+          - Prometheus: http://{{ ansible_host }}:9090
+          - Grafana: http://{{ ansible_host }}:3000
+          
+          Next Step: Deploy Series 3 (Platform VM)
+          $ ansible-playbook playbooks/03-series3-platform.yml

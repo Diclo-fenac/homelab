@@ -1,0 +1,13 @@
+# inventory/group_vars/series_4_ai.yml
+---
+vm_memory: 32768
+vm_cores: 16
+vm_rootfs_size: 100G
+
+gpu_passthrough_enabled: true
+ollama_enabled: true
+
+ufw_rules:
+  - port: 11434
+    proto: tcp
+    comment: "Ollama API"

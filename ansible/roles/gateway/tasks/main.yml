@@ -1,0 +1,4 @@
+# roles/gateway/tasks/main.yml
+---
+- name: "Include component-specific tasks"
+  include_tasks: "{{ gateway_component | default('nginx') }}.yml"

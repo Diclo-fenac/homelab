@@ -1,0 +1,19 @@
+# inventory/group_vars/series_3_platform.yml
+---
+vm_memory: 16384
+vm_cores: 8
+vm_rootfs_size: 100G
+
+docker_enabled: true
+immich_enabled: true
+nextcloud_enabled: true
+plane_enabled: true
+
+ufw_rules:
+  - port: 80
+    proto: tcp
+  - port: 443
+    proto: tcp
+  - port: 9000
+    proto: tcp
+    comment: "Authentik"

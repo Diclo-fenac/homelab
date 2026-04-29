@@ -1,0 +1,20 @@
+# inventory/group_vars/series_2_observability.yml
+---
+container_memory: 4096
+container_cores: 4
+container_rootfs_size: 50G
+
+prometheus_enabled: true
+grafana_enabled: true
+beszel_enabled: true
+
+ufw_rules:
+  - port: 3000
+    proto: tcp
+    comment: "Grafana"
+  - port: 9090
+    proto: tcp
+    comment: "Prometheus"
+  - port: 8080
+    proto: tcp
+    comment: "Beszel"

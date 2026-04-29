@@ -1,0 +1,214 @@
+# Series 5: Management LXC Playbook
+# Ansible control node for managing the lab infrastructure
+---
+
+- name: "Series 5: Deploy Management LXC"
+  hosts: management
+  serial: 1
+  vars:
+    ansible_user: root
+
+  pre_tasks:
+    - name: "Display Series 5 deployment header"
+      debug:
+        msg: |
+          ╔═════════════════════════════════════════════════════════════╗
+          ║     SERIES 5: MANAGEMENT LXC (Control Node)                 ║
+          ║     Ansible automation hub for the lab                      ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Container ID: {{ container_id }}
+          Hostname: {{ container_hostname }}
+          Memory: {{ container_memory }}MB
+          Cores: {{ container_cores }}
+          IP: {{ ansible_host }}
+
+  roles:
+    # Step 1: Provision the LXC container via Proxmox API
+    - role: proxmox_provision
+      tags: [provision]
+
+    # Step 2: Common setup (SSH, packages, networking)
+    - role: common
+      tags: [common]
+
+  tasks:
+    - name: "Install Ansible on management node"
+      apt:
+        name:
+          - ansible
+          - ansible-lint
+          - python3-pip
+          - python3-venv
+          - git
+          - curl
+          - wget
+          - vim
+          - htop
+          - net-tools
+        state: latest
+        update_cache: yes
+      become: yes
+
+    - name: "Install Ansible Galaxy requirements"
+      pip:
+        name:
+          - proxmoxer
+          - requests
+          - netaddr
+          - dnspython
+          - jinja2
+        state: latest
+
+    - name: "Create Ansible directory structure"
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop:
+        - /opt/ansible-lab
+        - /opt/ansible-lab/playbooks
+        - /opt/ansible-lab/roles
+        - /opt/ansible-lab/inventory
+        - /opt/ansible-lab/.git
+
+    - name: "Clone Ansible lab repository (if using git)"
+      git:
+        repo: "{{ ansible_repo_url | default('') }}"
+        dest: /opt/ansible-lab
+        version: main
+        depth: 1
+      ignore_errors: yes
+      when: ansible_repo_url is defined
+
+    - name: "Copy Ansible configuration"
+      copy:
+        content: |
+          [defaults]
+          inventory = /opt/ansible-lab/inventory/hosts.yml
+          roles_path = /opt/ansible-lab/roles
+          host_key_checking = False
+          gather_timeout = 30
+          timeout = 300
+          
+          [ssh_connection]
+          ssh_args = -o ControlMaster=auto -o ControlPersist=60s
+          pipelining = True
+        dest: /etc/ansible/ansible.cfg
+        mode: '0644'
+      become: yes
+
+    - name: "Setup SSH key for Ansible"
+      block:
+        - name: "Generate SSH key pair (if not exists)"
+          openssh_keypair:
+            path: /root/.ssh/id_rsa
+            type: rsa
+            size: 4096
+            state: present
+
+        - name: "Ensure SSH key permissions"
+          file:
+            path: /root/.ssh/id_rsa
+            mode: '0600'
+
+        - name: "Display public key"
+          shell: "cat /root/.ssh/id_rsa.pub"
+          register: ansible_public_key
+
+        - name: "Save public key for reference"
+          copy:
+            content: "{{ ansible_public_key.stdout }}"
+            dest: /opt/ansible-lab/ansible_public_key.pub
+            mode: '0644'
+
+    - name: "Create motd for management node"
+      copy:
+        content: |
+          ╔════════════════════════════════════════════════════════════╗
+          ║                 ANSIBLE CONTROL NODE                       ║
+          ║              T7910 Lab Management System                   ║
+          ╚════════════════════════════════════════════════════════════╝
+          
+          Ansible Lab Location: /opt/ansible-lab
+          
+          Quick Commands:
+          ===============
+          # Validate inventory
+          ansible all -m ping
+          
+          # Run playbooks
+          cd /opt/ansible-lab
+          ansible-playbook playbooks/site.yml
+          
+          # Check host status
+          ansible all -m setup
+          
+          # View logs
+          journalctl -u ansible -f
+          
+          ═══════════════════════════════════════════════════════════════
+        dest: /etc/motd
+        mode: '0644'
+      become: yes
+
+    - name: "Create daily backup job"
+      cron:
+        name: "Backup Ansible lab configs"
+        minute: "0"
+        hour: "1"
+        job: "tar -czf /opt/backups/ansible-lab-$(date +\\%Y\\%m\\%d).tar.gz /opt/ansible-lab/ 2>/dev/null || true"
+        state: present
+      become: yes
+
+    - name: "Create log directory for Ansible runs"
+      file:
+        path: /var/log/ansible
+        state: directory
+        mode: '0755'
+      become: yes
+
+  post_tasks:
+    - name: "Display management LXC status"
+      shell: |
+        echo "=== MANAGEMENT NODE STATUS ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "IP Address: $(hostname -I)" && \
+        echo "Ansible Version: $(ansible --version | head -1)" && \
+        echo "Python Version: $(python3 --version)" && \
+        echo "Ansible Lab Location: /opt/ansible-lab"
+      register: management_status
+
+    - name: "Display final deployment summary"
+      debug:
+        msg: |
+          {{ management_status.stdout }}
+          
+          ╔═════════════════════════════════════════════════════════════╗
+          ║       ALL SERIES DEPLOYMENT COMPLETE                        ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Infrastructure Summary:
+          ========================
+          ✓ Series 1: Gateway LXC (Nginx + Tailscale + DNS)
+          ✓ Series 2: Observability LXC (Prometheus + Grafana)
+          ✓ Series 3: Platform VM (Docker + Services)
+          ✓ Series 4: AI/Staging VM (Ollama + GPU)
+          ✓ Series 5: Management LXC (Ansible Control Node)
+          
+          Next Steps:
+          ===========
+          1. SSH into management node: ssh root@{{ ansible_host }}
+          2. Navigate to lab: cd /opt/ansible-lab
+          3. Test connectivity: ansible all -m ping
+          4. Run health checks: ansible-playbook playbooks/validate.yml
+          
+          Documentation:
+          ===============
+          - See: docs/PROXMOX_SETUP.md for Proxmox configuration
+          - See: docs/ROLES.md for role documentation
+          - See: docs/SECURITY.md for security hardening details
+          
+          Your T7910 Lab is Now FULLY OPERATIONAL! 🚀

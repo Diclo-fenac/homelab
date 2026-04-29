@@ -1,0 +1,178 @@
+#cloud-config
+# Cloud-init configuration for {{ vm_hostname }}
+# This file is processed on first VM boot to configure system
+
+---
+# ============================================================================
+# METADATA & INSTANCE CONFIGURATION
+# ============================================================================
+instance_id: {{ vm_hostname }}-{{ ansible_date_time.iso8601_basic_short }}
+hostname: {{ vm_hostname }}
+fqdn: {{ vm_hostname }}.lab.local
+preserve_hostname: false
+
+# ============================================================================
+# NETWORKING
+# ============================================================================
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - {{ ansible_host }}/24
+      gateway4: 192.168.1.1
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 1.0.0.1
+      routes:
+        - to: 0.0.0.0/0
+          via: 192.168.1.1
+
+# ============================================================================
+# USER SETUP
+# ============================================================================
+users:
+  - name: {{ cloud_init_user | default('debian') }}
+    gecos: {{ vm_hostname }} Admin
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: '{{ vault_cloud_init_password }}'
+    ssh_authorized_keys:
+      - {{ lookup('file', '~/.ssh/id_rsa.pub') }}
+
+# ============================================================================
+# SYSTEM UPDATES
+# ============================================================================
+apt:
+  preserve_sources_list: false
+  sources:
+    ubuntu_archive:
+      source: "deb $MIRROR $RELEASE main universe restricted multiverse"
+      keyid: "{{ ubuntu_apt_keyid | default('') }}"
+  conf: |
+    APT {
+      AutoRemove {
+        SuggestsImportant "false";
+      };
+    };
+
+# Update packages on first boot
+package_update: true
+package_upgrade: true
+package_reboot_if_required: false
+
+# ============================================================================
+# PACKAGES TO INSTALL
+# ============================================================================
+packages:
+  - python3
+  - python3-pip
+  - python3-venv
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - git
+  - openssh-server
+  - openssh-client
+  - ca-certificates
+  - apt-transport-https
+  - software-properties-common
+  - jq
+  - tree
+  - tmux
+  - zsh
+  - bash-completion
+{% if docker_enabled | default(false) | bool %}
+  - docker.io
+  - docker-compose
+{% endif %}
+{% if cuda_enabled | default(false) | bool %}
+  - nvidia-driver-545
+  - nvidia-utils
+  - nvidia-container-toolkit
+{% endif %}
+
+# ============================================================================
+# RUNCMD - Custom commands on first boot
+# ============================================================================
+runcmd:
+  # Update package lists
+  - ["apt-get", "update"]
+  - ["apt-get", "upgrade", "-y"]
+  
+  # Configure SSH
+  - sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+  - sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - systemctl restart sshd
+  
+{% if docker_enabled | default(false) | bool %}
+  # Add user to docker group
+  - usermod -aG docker {{ cloud_init_user | default('debian') }}
+  
+  # Enable docker service
+  - systemctl enable docker
+  - systemctl start docker
+  
+  # Install docker-compose (if not already installed via package manager)
+  - ["sh", "-c", "which docker-compose || curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)' -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"]
+{% endif %}
+
+{% if cuda_enabled | default(false) | bool %}
+  # NVIDIA GPU setup
+  - nvidia-smi
+  - docker run --rm --gpus all nvidia/cuda:12.0-runtime-ubuntu22.04 nvidia-smi
+{% endif %}
+
+  # Configure timezone
+  - timedatectl set-timezone UTC
+  - timedatectl set-ntp on
+  
+  # Setup swap (optional - for systems with high memory pressure)
+  - ["sh", "-c", "if [ ! -f /swapfile ]; then fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile; fi"]
+  
+  # System hardening - disable unnecessary services
+  - systemctl disable bluetooth || true
+  - systemctl disable cups || true
+  
+  # Create .ssh directory for root (for Ansible)
+  - mkdir -p /root/.ssh
+  - chmod 700 /root/.ssh
+
+# ============================================================================
+# WRITE_FILES - Create files on first boot
+# ============================================================================
+write_files:
+  - path: /etc/motd
+    content: |
+      ╔════════════════════════════════════════╗
+      ║  Welcome to {{ vm_hostname }}           ║
+      ║  Provisioned via Ansible + Cloud-Init  ║
+      ║  Created: {{ ansible_date_time.iso8601 }}        ║
+      ╚════════════════════════════════════════╝
+    permissions: '0644'
+  
+  - path: /root/.bashrc
+    append: true
+    content: |
+      # Added by cloud-init
+      alias ll='ls -lah'
+      alias la='ls -A'
+      alias l='ls -CF'
+      export PS1='\u@{{ vm_hostname }}:\w\$ '
+
+# ============================================================================
+# FINAL MESSAGE
+# ============================================================================
+final_message: |
+  Cloud-init has finished.
+  Instance {{ vm_hostname }} is ready.
+  
+  Boot completed after $UPTIME seconds.
+  System uptime: $UPTIME
+  Service status: $SERVICE_STATUS

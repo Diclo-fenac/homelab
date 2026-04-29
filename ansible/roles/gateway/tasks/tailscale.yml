@@ -1,0 +1,13 @@
+# roles/gateway/tasks/tailscale.yml
+---
+- name: "Install Tailscale"
+  shell: "curl -fsSL https://tailscale.com/install.sh | sh"
+  become: yes
+  args:
+    creates: /usr/bin/tailscale
+
+- name: "Authenticate Tailscale"
+  shell: "tailscale up --authkey={{ tailscale_auth_key }}"
+  become: yes
+  when: tailscale_auth_key is defined
+  ignore_errors: yes # Avoid failing if already authenticated

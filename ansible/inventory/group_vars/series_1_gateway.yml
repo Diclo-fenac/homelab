@@ -1,0 +1,222 @@
+# Series 1: Gateway LXC Configuration
+# Nginx reverse proxy + Tailscale + DNS
+---
+
+# ============================================================================
+# CONTAINER SIZING
+# ============================================================================
+container_memory: 2048
+container_cores: 2
+container_rootfs_size: 20G
+
+# ============================================================================
+# NGINX REVERSE PROXY SETTINGS
+# ============================================================================
+nginx_user: www-data
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+nginx_keepalive_timeout: 65
+nginx_client_max_body_size: 512M  # For file uploads
+
+# SSL/TLS Configuration
+nginx_ssl_protocols: "TLSv1.2 TLSv1.3"
+nginx_ssl_ciphers: "HIGH:!aNULL:!MD5"
+nginx_ssl_prefer_server_ciphers: true
+nginx_ssl_session_cache: "shared:SSL:10m"
+nginx_ssl_session_timeout: "10m"
+
+# Reverse proxy backends (dynamically generated from host discovery)
+# Format: service_name -> upstream servers
+nginx_upstreams:
+  immich:
+    servers:
+      - "192.168.1.103:2283 weight=1"
+  nextcloud:
+    servers:
+      - "192.168.1.103:80 weight=1"
+  plane:
+    servers:
+      - "192.168.1.103:3000 weight=1"
+  ollama:
+    servers:
+      - "192.168.1.104:11434 weight=1"
+  prometheus:
+    servers:
+      - "192.168.1.102:9090 weight=1"
+  grafana:
+    servers:
+      - "192.168.1.102:3000 weight=1"
+  authentik:
+    servers:
+      - "192.168.1.103:9000 weight=1"
+
+# Virtual hosts configuration
+nginx_vhosts:
+  immich:
+    domain: immich.{{ domain_suffix }}
+    upstream: immich
+    ssl: true
+    client_max_body_size: 1G
+  nextcloud:
+    domain: nextcloud.{{ domain_suffix }}
+    upstream: nextcloud
+    ssl: true
+  plane:
+    domain: plane.{{ domain_suffix }}
+    upstream: plane
+    ssl: true
+  ollama:
+    domain: ollama.{{ domain_suffix }}
+    upstream: ollama
+    ssl: true
+  prometheus:
+    domain: prometheus.{{ domain_suffix }}
+    upstream: prometheus
+    ssl: true
+    auth_enabled: true
+  grafana:
+    domain: grafana.{{ domain_suffix }}
+    upstream: grafana
+    ssl: true
+  authentik:
+    domain: auth.{{ domain_suffix }}
+    upstream: authentik
+    ssl: true
+
+# ============================================================================
+# TAILSCALE SETTINGS
+# ============================================================================
+tailscale_enabled: true
+tailscale_auth_key: "{{ vault_tailscale_auth_key }}"  # From vault
+tailscale_route_advertise: "192.168.1.0/24"          # Advertise local network
+tailscale_exit_node: false
+tailscale_accept_dns: true
+
+# ============================================================================
+# DNS SETTINGS
+# ============================================================================
+dns_enabled: true
+dns_service: systemd-resolved  # Use systemd-resolved for local DNS
+dns_upstream_servers:
+  - 1.1.1.1       # Cloudflare DNS 1
+  - 1.0.0.1       # Cloudflare DNS 2
+dns_local_zone: "lab.local"    # Local domain for internal services
+dns_cache_size: 1000
+dns_ttl_default: 3600
+
+# DNS A records (map local services to IPs)
+dns_local_records:
+  gateway: 192.168.1.101
+  observability: 192.168.1.102
+  platform-vm: 192.168.1.103
+  ai-vm: 192.168.1.104
+  management: 192.168.1.105
+
+# ============================================================================
+# SECURITY & FIREWALL
+# ============================================================================
+gateway_security_enabled: true
+enable_ufw: true
+ufw_rules:
+  - rule: allow
+    port: 22
+    proto: tcp
+    comment: "SSH"
+  - rule: allow
+    port: 80
+    proto: tcp
+    comment: "HTTP"
+  - rule: allow
+    port: 443
+    proto: tcp
+    comment: "HTTPS"
+  - rule: allow
+    port: 53
+    proto: udp
+    comment: "DNS"
+  - rule: allow
+    port: 41641
+    proto: udp
+    comment: "Tailscale"
+
+# Fail2Ban configuration
+fail2ban_enabled: true
+fail2ban_jails:
+  nginx-http-auth:
+    enabled: true
+    port: http,https
+  nginx-limit-req:
+    enabled: true
+    port: http,https
+  nginx-noscript:
+    enabled: true
+    port: http,https
+  sshd:
+    enabled: true
+    port: ssh
+    maxretry: 3
+
+# ============================================================================
+# LOG ROTATION
+# ============================================================================
+nginx_log_rotate: daily
+nginx_log_retention: 7
+
+# ============================================================================
+# MONITORING
+# ============================================================================
+prometheus_scrape_gateway: true
+node_exporter_port: 9100
+nginx_metrics_enabled: true  # nginx_vts_module for metrics
+
+# ============================================================================
+# PACKAGES
+# ============================================================================
+gateway_packages:
+  - nginx
+  - nginx-module-vts          # Nginx metrics module
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - dnsmasq                   # Lightweight DNS
+  - fail2ban
+  - ufw
+  - acme.sh                   # For Let's Encrypt SSL certs
+  - jq                        # JSON parsing
+  - python3-pip
+
+# ============================================================================
+# DOMAIN SETTINGS
+# ============================================================================
+domain_suffix: "lab.local"
+enable_ssl_certs: true  # Generate Let's Encrypt certs (requires external DNS)
+ssl_cert_provider: "letsencrypt"
+ssl_auto_renew: true
+ssl_renewal_days_before: 30
+
+# ============================================================================
+# PERFORMANCE TUNING
+# ============================================================================
+nginx_gzip_enabled: true
+nginx_gzip_types:
+  - "text/plain"
+  - "text/css"
+  - "text/xml"
+  - "text/javascript"
+  - "application/json"
+  - "application/javascript"
+nginx_gzip_min_length: 1000
+
+# Connection pooling for upstreams
+nginx_upstream_keepalive: 32
+nginx_upstream_keepalive_requests: 100
+nginx_upstream_keepalive_timeout: "60s"
+
+# ============================================================================
+# BACKUP & RECOVERY
+# ============================================================================
+nginx_backup_configs: true
+nginx_backup_location: "/opt/nginx-backups"
+nginx_auto_reload_on_config_change: true

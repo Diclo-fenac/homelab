@@ -1,0 +1,52 @@
+# Wait for Container/VM Boot
+# Ensures the container/VM is fully booted and ready for configuration
+---
+
+- name: "Wait for SSH to be available"
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 10
+    timeout: 300
+    state: started
+  register: ssh_ready
+  retries: 30
+  delay: 5
+
+- name: "Test SSH connectivity"
+  shell: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 {{ ansible_user }}@{{ ansible_host }} 'echo SSH connection successful'"
+  register: ssh_test
+  until: ssh_test.rc == 0
+  retries: 30
+  delay: 5
+  ignore_errors: yes
+
+- name: "Display SSH connectivity test result"
+  debug:
+    msg: "{{ ssh_test.stdout }}"
+
+- name: "Wait for system to be fully initialized"
+  shell: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ ansible_host }} 'systemctl is-system-running'"
+  register: system_status
+  until: system_status.stdout | regex_search('(running|degraded)')
+  retries: 30
+  delay: 5
+
+- name: "Verify cloud-init completion (for VMs)"
+  shell: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ ansible_host }} 'cloud-init status' | grep -E '(done|Running|Finished)'"
+  register: cloud_init_status
+  ignore_errors: yes
+  when: container_type | default('lxc') == 'vm'
+
+- name: "Display system status"
+  debug:
+    var: system_status.stdout
+
+- name: "Display cloud-init status"
+  debug:
+    var: cloud_init_status.stdout
+  when: cloud_init_status.rc == 0
+
+- name: "Wait additional time for background services to start"
+  pause:
+    seconds: 15

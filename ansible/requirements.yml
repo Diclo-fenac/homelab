@@ -1,0 +1,80 @@
+# Ansible Galaxy Collections & Roles
+# Install with: ansible-galaxy install -r requirements.yml
+
+---
+collections:
+  # =========================================================================
+  # PROXMOX INTEGRATION
+  # =========================================================================
+  - name: community.general
+    version: ">=5.0.0"
+    description: "General-purpose community collection"
+  
+  - name: ansible.posix
+    version: ">=1.4.0"
+    description: "POSIX systems support"
+  
+  # =========================================================================
+  # CLOUD & VIRTUALIZATION
+  # =========================================================================
+  - name: community.proxmox
+    version: ">=1.2.0"
+    description: "Proxmox VE integration"
+  
+  - name: community.libvirt
+    version: ">=1.2.0"
+    description: "Libvirt/KVM support"
+  
+  # =========================================================================
+  # CONTAINER & ORCHESTRATION
+  # =========================================================================
+  - name: community.docker
+    version: ">=3.0.0"
+    description: "Docker container management"
+  
+  # =========================================================================
+  # NETWORK & DNS
+  # =========================================================================
+  - name: community.dns
+    version: ">=2.4.0"
+    description: "DNS management"
+  
+  # =========================================================================
+  # SECURITY & MONITORING
+  # =========================================================================
+  - name: kubernetes.core
+    version: ">=2.3.0"
+    description: "Kubernetes integration (optional)"
+  
+  # =========================================================================
+  # UTILITY
+  # =========================================================================
+  - name: ansible.netcommon
+    version: ">=4.0.0"
+    description: "Network utilities"
+
+roles:
+  # =========================================================================
+  # WEBSERVER & REVERSE PROXY
+  # =========================================================================
+  - src: https://github.com/geerlingguy/ansible-role-nginx
+    name: geerlingguy.nginx
+    version: master
+  
+  # =========================================================================
+  # SYSTEM HARDENING
+  # =========================================================================
+  - src: https://github.com/dev-sec/ansible-collection-hardening
+    name: devsec.hardening
+    version: main
+  
+  # =========================================================================
+  # MONITORING & OBSERVABILITY
+  # =========================================================================
+  - src: https://github.com/prometheus-community/ansible-prometheus
+    name: prometheus.prometheus
+    version: main
+  
+  # =========================================================================
+  # NOTE: Custom roles are stored in ./roles directory
+  # =========================================================================

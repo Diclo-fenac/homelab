@@ -1,0 +1,102 @@
+# Series 3: Platform VM Playbook
+# Docker host for Immich, Nextcloud, Plane, Dashy, and Authentik (SSO)
+---
+
+- name: "Series 3: Deploy Platform VM"
+  hosts: series_3_platform
+  serial: 1
+  vars:
+    ansible_user: debian
+
+  pre_tasks:
+    - name: "Display Series 3 deployment header"
+      debug:
+        msg: |
+          ╔═════════════════════════════════════════════════════════════╗
+          ║     SERIES 3: PLATFORM VM (Docker Host)                     ║
+          ║     Immich | Nextcloud | Plane | Dashy | Authentik         ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          VM ID: {{ vm_id }}
+          Hostname: {{ vm_hostname }}
+          Memory: {{ vm_memory }}MB
+          Cores: {{ vm_cores }}
+          Storage: {{ vm_rootfs_size }}
+          IP: {{ ansible_host }}
+
+  roles:
+    # Step 1: Provision the VM via Proxmox API
+    - role: proxmox_provision
+      tags: [provision]
+
+    # Step 2: Common setup (SSH, packages, networking)
+    - role: common
+      tags: [common]
+
+    # Step 3: Install Docker and Docker Compose
+    - role: docker_host
+      tags: [docker, docker_host]
+
+    # Step 4: Deploy Authentik (SSO/Identity provider)
+    - role: identity
+      tags: [identity, authentik, sso]
+
+    # Step 5: Deploy services via Docker Compose
+    - role: docker_host
+      vars:
+        docker_component: services
+      tags: [docker, services, immich, nextcloud, plane]
+
+    # Step 6: Security hardening
+    - role: security
+      tags: [security, hardening, crowdsec]
+
+  post_tasks:
+    - name: "Verify Docker is running"
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: "Check deployed Docker containers"
+      shell: "docker ps --format 'table {{.Names}}\t{{.Status}}' 2>/dev/null || echo 'Docker not ready yet'"
+      register: docker_containers
+      ignore_errors: yes
+
+    - name: "Display platform VM status"
+      shell: |
+        echo "=== PLATFORM VM STATUS ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "IP Address: $(hostname -I)" && \
+        echo "Docker Status: $(systemctl is-active docker)" && \
+        echo "Docker Version: $(docker --version 2>/dev/null || echo 'Installing...')" && \
+        echo "" && \
+        echo "Deployed Containers:" && \
+        docker ps --format "table {{.Names}}\t{{.Status}}" 2>/dev/null || echo "Waiting for containers to start..."
+      register: platform_status
+      ignore_errors: yes
+
+    - name: "Display deployment summary"
+      debug:
+        msg: |
+          {{ platform_status.stdout }}
+          
+          ╔═════════════════════════════════════════════════════════════╗
+          ║        SERIES 3 DEPLOYMENT COMPLETE                         ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Services Deployed:
+          - Immich: Photo/video management
+          - Nextcloud: File sharing & collaboration
+          - Plane: Project management
+          - Dashy: Dashboard
+          - Authentik: Single Sign-On (SSO)
+          
+          Access via Gateway (Series 1):
+          - https://immich.lab.local
+          - https://nextcloud.lab.local
+          - https://plane.lab.local
+          - https://auth.lab.local
+          
+          Next Step: Deploy Series 4 (AI/Staging VM)
+          $ ansible-playbook playbooks/04-series4-ai.yml

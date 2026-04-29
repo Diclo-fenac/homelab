@@ -1,0 +1,41 @@
+# roles/common/tasks/main.yml
+---
+- name: "Update apt cache and upgrade packages"
+  apt:
+    update_cache: yes
+    upgrade: dist
+  become: yes
+
+- name: "Install base utility packages"
+  apt:
+    name:
+      - curl
+      - wget
+      - vim
+      - htop
+      - net-tools
+      - git
+      - rsync
+      - unzip
+      - ufw
+      - fail2ban
+      - python3-pip
+      - python3-venv
+    state: present
+  become: yes
+
+- name: "Ensure time zone is set to UTC"
+  timezone:
+    name: UTC
+  become: yes
+
+- name: "Setup user-specific shell aliases"
+  copy:
+    content: |
+      alias ll='ls -alF'
+      alias la='ls -A'
+      alias l='ls -CF'
+      alias gs='git status'
+    dest: /etc/profile.d/homelab_aliases.sh
+    mode: '0644'
+  become: yes

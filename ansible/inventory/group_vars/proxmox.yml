@@ -1,0 +1,110 @@
+# Group variables for all Proxmox nodes
+---
+
+# ============================================================================
+# PROXMOX API SETTINGS
+# ============================================================================
+proxmox_api_timeout: 60
+proxmox_ssl_verify: false
+
+# ============================================================================
+# LXC CONTAINER DEFAULTS
+# ============================================================================
+# Applied to all LXC containers unless overridden
+lxc_defaults:
+  storage: local-lvm
+  net_gateway: 192.168.1.1
+  net_netmask: 255.255.255.0
+  net_bridge: vmbr0
+  cpu_count: 2
+  memory: 2048
+  swap: 512
+  unprivileged: true
+  features: nesting=1,keyctl=1
+
+# ============================================================================
+# VM DEFAULTS
+# ============================================================================
+vm_defaults:
+  storage: local-lvm
+  net_gateway: 192.168.1.1
+  net_netmask: 255.255.255.0
+  net_bridge: vmbr0
+  memory: 8192
+  cores: 4
+  sockets: 1
+  numa: false
+  kvm: true
+  vga: virtio
+
+# ============================================================================
+# UBUNTU/DEBIAN TEMPLATES
+# ============================================================================
+# Used for cloud-init on VMs
+debian_version: 12
+ubuntu_version: 24.04
+template_storage: local
+
+# ============================================================================
+# NETWORKING
+# ============================================================================
+gateway_ip: 192.168.1.1
+gateway_vlan: 1
+dns_servers:
+  - 1.1.1.1        # Cloudflare DNS 1
+  - 1.0.0.1        # Cloudflare DNS 2
+  - 8.8.8.8        # Google DNS (fallback)
+
+# ============================================================================
+# SSH SETTINGS
+# ============================================================================
+ssh_port: 22
+ssh_hardening: true
+ssh_key_bits: 4096
+ssh_key_type: rsa
+
+# ============================================================================
+# FIREWALL / SECURITY
+# ============================================================================
+enable_ufw: true
+enable_fail2ban: true
+enable_crowdsec: true
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+prometheus_scrape_interval: 15s
+prometheus_evaluation_interval: 15s
+beszel_agent_enabled: true
+node_exporter_enabled: true
+
+# ============================================================================
+# BACKUP SETTINGS
+# ============================================================================
+backup_enabled: false  # Set to true when backup infrastructure is ready
+backup_location: /mnt/backups
+backup_retention_days: 30
+backup_schedule:
+  lxc: "02:00"         # 2 AM UTC
+  vms: "03:00"         # 3 AM UTC
+
+# ============================================================================
+# LOGGING & AUDIT
+# ============================================================================
+log_level: info
+enable_audit_logging: true
+log_retention_days: 30
+
+# ============================================================================
+# REPOSITORY & PACKAGE SETTINGS
+# ============================================================================
+update_packages: true
+security_updates_only: false
+package_update_schedule: "0 3 * * *"  # 3 AM daily
+
+# ============================================================================
+# ANSIBLE SETTINGS
+# ============================================================================
+ansible_connection_timeout: 30
+ansible_command_timeout: 120
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"

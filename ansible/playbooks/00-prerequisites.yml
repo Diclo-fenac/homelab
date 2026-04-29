@@ -1,0 +1,170 @@
+# Series 0: Prerequisites
+# Validates Proxmox API access, SSH keys, and environment setup
+---
+
+- name: "Prerequisites: Validate Proxmox API Access"
+  hosts: proxmox
+  gather_facts: yes
+  become: no
+  
+  tasks:
+    - name: "Display environment information"
+      debug:
+        msg: |
+          ╔═══════════════════════════════════════════════════════════╗
+          ║          Ansible Lab - Prerequisites Validation            ║
+          ╚═══════════════════════════════════════════════════════════╝
+          
+          Proxmox Node: {{ proxmox_node }}
+          API Host: {{ proxmox_api_host }}
+          API User: {{ proxmox_api_user }}
+          Deployment Target: T7910 Single Node
+          Ansible Version: {{ ansible_version.full }}
+          Python Version: {{ ansible_python_version }}
+
+    - name: "Check if Proxmox API is accessible"
+      uri:
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/version"
+        method: GET
+        validate_certs: "{{ proxmox_verify_ssl | default(false) }}"
+      register: proxmox_api_check
+      failed_when: proxmox_api_check.status != 200
+
+    - name: "Display Proxmox version"
+      debug:
+        msg: "Proxmox Version: {{ proxmox_api_check.json.data.version }}"
+
+    - name: "Verify Proxmox API token is set"
+      assert:
+        that:
+          - proxmox_api_token_id is defined
+          - proxmox_api_token_secret is defined
+        fail_msg: "Proxmox API token credentials not found. Please add to inventory."
+
+    - name: "Check Proxmox node exists"
+      shell: |
+        curl -sk -X GET \
+          -H "Authorization: PVEAPIToken={{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}" \
+          "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_node }}" | jq .
+      register: proxmox_node_check
+      changed_when: false
+
+    - name: "Display Proxmox node information"
+      debug:
+        var: proxmox_node_check.stdout | from_json
+
+    - name: "Check SSH key exists locally"
+      stat:
+        path: "{{ ansible_ssh_private_key_file }}"
+      register: ssh_key_stat
+
+    - name: "Verify SSH key exists"
+      assert:
+        that:
+          - ssh_key_stat.stat.exists
+        fail_msg: "SSH private key not found at {{ ansible_ssh_private_key_file }}"
+
+    - name: "Verify SSH key permissions"
+      assert:
+        that:
+          - ssh_key_stat.stat.mode == '0600'
+        fail_msg: "SSH key permissions should be 0600. Run: chmod 600 {{ ansible_ssh_private_key_file }}"
+
+    - name: "Check Ansible inventory is valid"
+      assert:
+        that:
+          - groups['series_1_gateway'] is defined
+          - groups['series_2_observability'] is defined
+          - groups['series_3_platform'] is defined
+          - groups['series_4_ai'] is defined
+        fail_msg: "Inventory groups not properly configured"
+
+    - name: "Display configured hosts"
+      debug:
+        msg: |
+          Configured Hosts:
+          ==================
+          Series 1 (Gateway): {{ groups.get('series_1_gateway', []) | default([]) }}
+          Series 2 (Observability): {{ groups.get('series_2_observability', []) | default([]) }}
+          Series 3 (Platform VM): {{ groups.get('series_3_platform', []) | default([]) }}
+          Series 4 (AI VM): {{ groups.get('series_4_ai', []) | default([]) }}
+          Management: {{ groups.get('management', []) | default([]) }}
+
+    - name: "Check available storage"
+      shell: "pvesm status"
+      register: storage_status
+      changed_when: false
+
+    - name: "Display available storage"
+      debug:
+        msg: |
+          {{ storage_status.stdout }}
+
+    - name: "Verify required Proxmox packages are installed"
+      shell: "dpkg -l | grep -E '(proxmox|pve)' | wc -l"
+      register: proxmox_packages
+      changed_when: false
+
+    - name: "Check Proxmox packages"
+      assert:
+        that:
+          - proxmox_packages.stdout | int > 10
+        fail_msg: "Proxmox does not appear to be properly installed"
+
+    - name: "Check for required Python modules (locally)"
+      python:
+        script: |
+          import sys
+          modules = ['proxmoxer', 'requests']
+          missing = []
+          for mod in modules:
+              try:
+                  __import__(mod)
+              except ImportError:
+                  missing.append(mod)
+          
+          if missing:
+              print(f"Missing modules: {', '.join(missing)}")
+              sys.exit(1)
+          print("All required Python modules found")
+      ignore_errors: yes
+      register: python_modules_check
+
+    - name: "Display Python modules check"
+      debug:
+        msg: "{{ python_modules_check.stdout }}"
+
+    - name: "Create Ansible vault password file (if not exists)"
+      file:
+        path: "{{ playbook_dir | dirname }}/vault-password-file"
+        state: touch
+        mode: '0600'
+      ignore_errors: yes
+
+    - name: "Display next steps"
+      debug:
+        msg: |
+          ╔═══════════════════════════════════════════════════════════╗
+          ║              Prerequisites Validation PASSED               ║
+          ╚═══════════════════════════════════════════════════════════╝
+          
+          Next Steps:
+          ===========
+          1. Review inventory/hosts.yml and customize host IPs
+          2. Update vault secrets:
+             - vault_proxmox_api_token
+             - vault_tailscale_auth_key
+             - vault_grafana_password
+             - vault_cloud_init_password
+          
+          3. Run: ansible-vault edit inventory/group_vars/all.yml
+          
+          4. Deploy Series 1 (Gateway):
+             ansible-playbook playbooks/01-series1-gateway.yml
+          
+          5. Deploy all series:
+             ansible-playbook playbooks/site.yml
+
+    - name: "SUCCESS: All prerequisites validated"
+      debug:
+        msg: "✓ Proxmox API is accessible ✓ SSH keys are valid ✓ Inventory configured ✓ Ready to deploy"

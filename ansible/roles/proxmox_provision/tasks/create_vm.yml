@@ -1,0 +1,88 @@
+# Virtual Machine Provisioning
+# Creates VMs on Proxmox with cloud-init support
+---
+
+- name: "Debug: Display VM configuration"
+  debug:
+    msg: |
+      Creating VM:
+        - VM ID: {{ vm_id }}
+        - Hostname: {{ vm_hostname }}
+        - Memory: {{ vm_memory }}MB
+        - Cores: {{ vm_cores }}
+        - Storage: {{ vm_storage }}
+        - Root FS Size: {{ vm_rootfs_size }}
+
+- name: "Generate cloud-init configuration"
+  template:
+    src: cloud-init.yml.j2
+    dest: "/tmp/cloud-init-{{ vm_hostname }}.yml"
+    mode: '0600'
+
+- name: "Create VM via Proxmox API"
+  proxmox_kvm:
+    proxmox_default_behavior: "no_defaults"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ vm_id }}"
+    name: "{{ vm_hostname }}"
+    memory: "{{ vm_memory }}"
+    cores: "{{ vm_cores }}"
+    sockets: "{{ vm_sockets | default(1) }}"
+    numa: "{{ vm_numa | default(false) }}"
+    vga: "{{ vm_vga | default('serial0') }}"
+    serial:
+      serial0: socket
+    net:
+      net0: "virtio,bridge=vmbr0"
+    scsi:
+      scsi0: "{{ vm_storage }}:{{ vm_rootfs_size }},format=qcow2,discard=on,ssd=1"
+    ide:
+      ide2: "local:cloudinit"
+    cicustom: "user=/local:snippets/cloud-init-{{ vm_hostname }}.yml"
+    ciuser: "{{ cloud_init_user | default('debian') }}"
+    cipassword: "{{ vault_cloud_init_password }}"
+    timeout: 600
+    state: present
+  register: vm_creation_result
+
+- name: "Display VM creation result"
+  debug:
+    var: vm_creation_result
+
+- name: "Start VM"
+  proxmox_kvm:
+    proxmox_default_behavior: "no_defaults"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ vm_id }}"
+    state: started
+  register: vm_start_result
+
+- name: "Wait for VM to start"
+  pause:
+    seconds: 15
+
+- name: "Verify VM is running"
+  shell: "qm status {{ vm_id }}"
+  register: vm_status
+  until: "'running' in vm_status.stdout"
+  retries: 30
+  delay: 5
+
+- name: "Display VM status"
+  debug:
+    var: vm_status.stdout
+
+# GPU Passthrough (optional, for AI VM)
+- name: "Configure GPU passthrough (if enabled)"
+  block:
+    - name: "Add GPU device to VM"
+      shell: |
+        qm set {{ vm_id }} \
+          -hostpci0 {{ gpu_device }},pcie=1,rombar=0
+      when: gpu_passthrough_enabled | default(false) | bool
+      register: gpu_passthrough_result
+
+    - name: "Display GPU passthrough configuration"
+      debug:
+        var: gpu_passthrough_result
+  when: gpu_passthrough_enabled | default(false) | bool

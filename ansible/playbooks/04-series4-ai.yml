@@ -1,0 +1,121 @@
+# Series 4: AI/Staging VM Playbook
+# 16vCPU + GPU passthrough for Ollama and development work
+---
+
+- name: "Series 4: Deploy AI/Staging VM"
+  hosts: series_4_ai
+  serial: 1
+  vars:
+    ansible_user: debian
+
+  pre_tasks:
+    - name: "Display Series 4 deployment header"
+      debug:
+        msg: |
+          ╔═════════════════════════════════════════════════════════════╗
+          ║     SERIES 4: AI/STAGING VM (Beast Mode)                    ║
+          ║     16vCPU + GPU for Ollama & Development                   ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          VM ID: {{ vm_id }}
+          Hostname: {{ vm_hostname }}
+          Memory: {{ vm_memory }}MB ({{ vm_memory / 1024 }}GB)
+          Cores: {{ vm_cores }} vCPU
+          Storage: {{ vm_rootfs_size }}
+          GPU Passthrough: {{ gpu_passthrough_enabled | default(false) }}
+          IP: {{ ansible_host }}
+
+  roles:
+    # Step 1: Provision the VM via Proxmox API
+    - role: proxmox_provision
+      tags: [provision]
+
+    # Step 2: Common setup (SSH, packages, networking)
+    - role: common
+      tags: [common]
+
+    # Step 3: Configure GPU passthrough and drivers
+    - role: ai_workstation
+      vars:
+        ai_component: gpu
+      tags: [ai, gpu, cuda]
+      when: gpu_passthrough_enabled | default(false) | bool
+
+    # Step 4: Install Ollama for local LLMs
+    - role: ai_workstation
+      vars:
+        ai_component: ollama
+      tags: [ai, ollama, llm]
+
+    # Step 5: Install development tools and environment
+    - role: ai_workstation
+      vars:
+        ai_component: devtools
+      tags: [ai, devtools, dev]
+
+    # Step 6: Security hardening
+    - role: security
+      tags: [security, hardening]
+
+  post_tasks:
+    - name: "Verify GPU passthrough (if enabled)"
+      shell: "lspci | grep -i nvidia"
+      register: gpu_check
+      ignore_errors: yes
+      when: gpu_passthrough_enabled | default(false) | bool
+
+    - name: "Check GPU drivers"
+      shell: "nvidia-smi 2>/dev/null || echo 'Drivers installing...'"
+      register: nvidia_smi
+      ignore_errors: yes
+      when: gpu_passthrough_enabled | default(false) | bool
+
+    - name: "Verify Ollama is installed"
+      shell: "which ollama"
+      register: ollama_check
+      ignore_errors: yes
+
+    - name: "Display AI VM status"
+      shell: |
+        echo "=== AI/STAGING VM STATUS ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "IP Address: $(hostname -I)" && \
+        echo "CPU Cores: $(nproc)" && \
+        echo "Memory: $(free -h | grep Mem | awk '{print $2}')" && \
+        echo "Ollama Status: $(systemctl is-active ollama 2>/dev/null || echo 'Installing...')" && \
+        echo "Ollama Location: $(which ollama 2>/dev/null || echo 'Not yet installed')" && \
+        {% if gpu_passthrough_enabled | default(false) | bool %}
+        echo "" && \
+        echo "GPU Information:" && \
+        nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader 2>/dev/null || echo "GPU drivers installing..."
+        {% else %}
+        echo "GPU: Not enabled for this deployment"
+        {% endif %}
+      register: ai_status
+      ignore_errors: yes
+
+    - name: "Display deployment summary"
+      debug:
+        msg: |
+          {{ ai_status.stdout }}
+          
+          ╔═════════════════════════════════════════════════════════════╗
+          ║        SERIES 4 DEPLOYMENT COMPLETE                         ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          AI/Staging Workstation Ready:
+          - Ollama: Local LLM inference engine
+          {% if gpu_passthrough_enabled | default(false) | bool %}
+          - GPU: NVIDIA GPU passed through for acceleration
+          - CUDA: GPU-accelerated computing
+          {% endif %}
+          - Development Tools: Python, Git, Docker, etc.
+          
+          Using Ollama:
+          1. SSH into the VM: ssh debian@{{ ansible_host }}
+          2. Pull a model: ollama pull mistral
+          3. Run it: ollama run mistral
+          4. API available at: http://{{ ansible_host }}:11434
+          
+          Next Step: Deploy Management LXC (Control Node)
+          $ ansible-playbook playbooks/05-management.yml

@@ -1,0 +1,25 @@
+# roles/gateway/tasks/dns.yml
+---
+- name: "Install DNS utilities"
+  apt:
+    name: systemd-resolved
+    state: present
+  become: yes
+
+- name: "Start and enable systemd-resolved"
+  systemd:
+    name: systemd-resolved
+    state: started
+    enabled: yes
+  become: yes
+
+# Add local DNS records to /etc/hosts for simple internal resolution
+- name: "Add internal DNS records to /etc/hosts"
+  blockinfile:
+    path: /etc/hosts
+    block: |
+      {% for host, ip in dns_local_records.items() %}
+      {{ ip }} {{ host }}.{{ domain_suffix }} {{ host }}
+      {% endfor %}
+  become: yes
+  when: dns_local_records is defined

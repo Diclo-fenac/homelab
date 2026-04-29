@@ -1,0 +1,27 @@
+# Proxmox Provisioning Role - Main Tasks
+# Creates LXCs and VMs via Proxmox API
+---
+
+- name: "Include OS-specific provisioning task"
+  include_tasks: "{{ container_type }}.yml"
+  vars:
+    container_type: "{{ hostvars[inventory_hostname].container_type | default('lxc') }}"
+
+- name: "Wait for container/VM to be ready"
+  include_tasks: wait_for_boot.yml
+
+- name: "Add host to known_hosts"
+  known_hosts:
+    name: "{{ ansible_host }}"
+    key: "{{ lookup('pipe', 'ssh-keyscan -t rsa ' + ansible_host) }}"
+    state: present
+  ignore_errors: yes
+  when: ansible_host is defined
+
+- name: "Perform initial SSH connection test"
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    delay: 5
+    timeout: 300
+  when: ansible_host is defined

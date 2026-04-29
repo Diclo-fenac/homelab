@@ -1,0 +1,96 @@
+# Series 1: Gateway LXC Playbook
+# Nginx reverse proxy + Tailscale + DNS
+---
+
+- name: "Series 1: Deploy Gateway LXC"
+  hosts: series_1_gateway
+  serial: 1
+  vars:
+    ansible_user: root
+  
+  pre_tasks:
+    - name: "Display Series 1 deployment header"
+      debug:
+        msg: |
+          ╔═════════════════════════════════════════════════════════════╗
+          ║     SERIES 1: GATEWAY (Nginx + Tailscale + DNS)             ║
+          ║     Your secure entry point to the lab                      ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Container ID: {{ container_id }}
+          Hostname: {{ container_hostname }}
+          Memory: {{ container_memory }}MB
+          Cores: {{ container_cores }}
+          IP: {{ ansible_host }}
+
+  roles:
+    # Step 1: Provision the LXC container via Proxmox API
+    - role: proxmox_provision
+      tags: [provision]
+
+    # Step 2: Common setup (SSH, packages, networking)
+    - role: common
+      tags: [common]
+
+    # Step 3: Install and configure Nginx reverse proxy
+    - role: gateway
+      tags: [gateway, nginx]
+
+    # Step 4: Setup Tailscale VPN
+    - role: gateway
+      vars:
+        gateway_component: tailscale
+      tags: [gateway, tailscale]
+
+    # Step 5: Configure DNS
+    - role: gateway
+      vars:
+        gateway_component: dns
+      tags: [gateway, dns]
+
+    # Step 6: Security hardening (firewall, fail2ban)
+    - role: security
+      tags: [security, hardening]
+
+  post_tasks:
+    - name: "Verify Nginx is running"
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    - name: "Verify Tailscale is running"
+      systemd:
+        name: tailscaled
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
+    - name: "Display gateway status"
+      shell: |
+        echo "=== GATEWAY STATUS ===" && \
+        echo "Hostname: $(hostname)" && \
+        echo "IP Address: $(hostname -I)" && \
+        echo "Nginx Status: $(systemctl is-active nginx)" && \
+        echo "Tailscale Status: $(systemctl is-active tailscaled)" && \
+        echo "DNS Status: $(systemctl is-active systemd-resolved)"
+      register: gateway_status
+      ignore_errors: yes
+
+    - name: "Display deployment summary"
+      debug:
+        msg: |
+          {{ gateway_status.stdout }}
+          
+          ╔═════════════════════════════════════════════════════════════╗
+          ║            SERIES 1 DEPLOYMENT COMPLETE                     ║
+          ╚═════════════════════════════════════════════════════════════╝
+          
+          Gateway is now ready to:
+          - Route traffic via Nginx reverse proxy
+          - Connect to Tailscale VPN
+          - Provide DNS resolution for local services
+          
+          Next Step: Deploy Series 2 (Observability)
+          $ ansible-playbook playbooks/02-series2-observability.yml

@@ -1,0 +1,184 @@
+# Master Site Playbook
+# Orchestrates deployment of entire lab infrastructure in the correct order
+---
+
+- name: "T7910 Ansible Lab - Complete Deployment"
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    deployment_start_time: "{{ ansible_date_time.iso8601 }}"
+  
+  pre_tasks:
+    - name: "Display deployment header"
+      debug:
+        msg: |
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║                                                               ║
+          ║      T7910 ANSIBLE LAB - COMPLETE INFRASTRUCTURE DEPLOY      ║
+          ║                                                               ║
+          ║  Architecture: Hybrid Model (LXC + VMs)                      ║
+          ║  Target: Single Proxmox Node (T7910)                         ║
+          ║  Deployment Started: {{ deployment_start_time }}            ║
+          ║                                                               ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          
+          This playbook will deploy:
+          
+          ✓ Series 0: Prerequisites validation
+          ✓ Series 1: Gateway LXC (Nginx, Tailscale, DNS)
+          ✓ Series 2: Observability LXC (Prometheus, Grafana, Beszel)
+          ✓ Series 3: Platform VM (Docker + Services)
+          ✓ Series 4: AI/Staging VM (Ollama + GPU)
+          ✓ Series 5: Management LXC (Ansible Control Node)
+          
+          Estimated deployment time: 30-45 minutes
+          
+          Press CTRL+C to cancel before series 0 starts.
+
+    - name: "Wait for user confirmation"
+      pause:
+        prompt: "Press Enter to continue with full deployment..."
+
+  roles: []
+  
+  tasks:
+    # =========================================================================
+    # SERIES 0: PREREQUISITES
+    # =========================================================================
+    - name: "Execute Series 0: Prerequisites"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/00-prerequisites.yml \
+          -v
+      register: series_0_result
+
+    - name: "Series 0 Status"
+      debug:
+        msg: |
+          Series 0 (Prerequisites) completed with status: {{ series_0_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+    # =========================================================================
+    # SERIES 1: GATEWAY
+    # =========================================================================
+    - name: "Execute Series 1: Gateway LXC"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/01-series1-gateway.yml \
+          -v
+      register: series_1_result
+
+    - name: "Series 1 Status"
+      debug:
+        msg: |
+          Series 1 (Gateway) completed with status: {{ series_1_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+    # =========================================================================
+    # SERIES 2: OBSERVABILITY
+    # =========================================================================
+    - name: "Execute Series 2: Observability LXC"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/02-series2-observability.yml \
+          -v
+      register: series_2_result
+
+    - name: "Series 2 Status"
+      debug:
+        msg: |
+          Series 2 (Observability) completed with status: {{ series_2_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+    # =========================================================================
+    # SERIES 3: PLATFORM VM
+    # =========================================================================
+    - name: "Execute Series 3: Platform VM"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/03-series3-platform.yml \
+          -v
+      register: series_3_result
+
+    - name: "Series 3 Status"
+      debug:
+        msg: |
+          Series 3 (Platform VM) completed with status: {{ series_3_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+    # =========================================================================
+    # SERIES 4: AI/STAGING VM
+    # =========================================================================
+    - name: "Execute Series 4: AI/Staging VM"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/04-series4-ai.yml \
+          -v
+      register: series_4_result
+
+    - name: "Series 4 Status"
+      debug:
+        msg: |
+          Series 4 (AI/Staging) completed with status: {{ series_4_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+    # =========================================================================
+    # SERIES 5: MANAGEMENT
+    # =========================================================================
+    - name: "Execute Series 5: Management LXC"
+      command: |
+        ansible-playbook \
+          {{ playbook_dir }}/05-management.yml \
+          -v
+      register: series_5_result
+
+    - name: "Series 5 Status"
+      debug:
+        msg: |
+          Series 5 (Management) completed with status: {{ series_5_result.rc }}
+          Time: {{ ansible_date_time.iso8601 }}
+
+  post_tasks:
+    - name: "Calculate total deployment time"
+      set_fact:
+        deployment_end_time: "{{ ansible_date_time.iso8601 }}"
+
+    - name: "Display final deployment summary"
+      debug:
+        msg: |
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║                 DEPLOYMENT COMPLETE                           ║
+          ║              All Series Deployed Successfully!                ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          
+          Deployment Timeline:
+          ====================
+          Started: {{ deployment_start_time }}
+          Completed: {{ deployment_end_time }}
+          
+          Series Results:
+          ===============
+          Series 0 (Prerequisites): {{ 'PASSED' if series_0_result.rc == 0 else 'FAILED' }}
+          Series 1 (Gateway):       {{ 'PASSED' if series_1_result.rc == 0 else 'FAILED' }}
+          Series 2 (Observability): {{ 'PASSED' if series_2_result.rc == 0 else 'FAILED' }}
+          Series 3 (Platform):      {{ 'PASSED' if series_3_result.rc == 0 else 'FAILED' }}
+          Series 4 (AI/Staging):    {{ 'PASSED' if series_4_result.rc == 0 else 'FAILED' }}
+          Series 5 (Management):    {{ 'PASSED' if series_5_result.rc == 0 else 'FAILED' }}
+          
+          Infrastructure Status:
+          ======================
+          ✓ Gateway (101):       192.168.1.101
+          ✓ Observability (102): 192.168.1.102
+          ✓ Platform VM (200):   192.168.1.103
+          ✓ AI VM (201):         192.168.1.104
+          ✓ Management (105):    192.168.1.105
+          
+          Next Steps:
+          ===========
+          1. Verify infrastructure: ansible-playbook playbooks/validate.yml
+          2. Access Grafana: http://192.168.1.102:3000 (via Gateway proxy)
+          3. SSH to management: ssh root@192.168.1.105
+          4. Review docs/: See README.md for documentation
+          
+          Congratulations! Your T7910 lab is ready for production! 🚀
