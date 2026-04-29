@@ -2,6 +2,16 @@
 
 This repository contains the configuration, scripts, and deployment files for my homelab environment, built around a Dell Precision 7910 Workstation and Proxmox.
 
+For a detailed walkthrough of my physical setup and hardware, visit: [mayankpadhi.com/#/setup](https://www.mayankpadhi.com/#/setup)
+
+## Architecture Diagrams
+
+### System Architecture
+![System Architecture](readme-docs/system_archi.jpeg)
+
+### Network & Infrastructure Flow
+![Network Architecture](readme-docs/system_archi_2.jpeg)
+
 ## Architecture Overview
 *   **Hypervisor:** Proxmox VE
 *   **Networking:** Tailscale Overlay, OPNsense/Suricata Edge
@@ -12,7 +22,7 @@ This repository contains the configuration, scripts, and deployment files for my
 ## Repository Structure
 *   `docker/`: Docker Compose files for all containerized services (organized by stack).
 *   `scripts/`: Utility and backup scripts (e.g., GCP sync).
-*   `ansible/` *(planned)*: Playbooks for node provisioning and configuration management.
+*   `ansible/`: Playbooks for node provisioning and configuration management.
 *   `readme-docs/`: Diagrams and documentation assets.
 
 ## Philosophy
