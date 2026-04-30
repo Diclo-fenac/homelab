@@ -1,0 +1,12 @@
+---
+# tasks/prometheus.yml
+- name: "Install Prometheus"
+  apt:
+    name: prometheus
+    state: present
+
+- name: "Ensure Prometheus is started and enabled"
+  systemd:
+    name: prometheus
+    state: started
+    enabled: yes

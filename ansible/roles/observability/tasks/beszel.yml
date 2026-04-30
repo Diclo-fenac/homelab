@@ -1,0 +1,14 @@
+---
+# tasks/beszel.yml
+- name: "Install Beszel agent"
+  shell: "curl -sL https://raw.githubusercontent.com/beszel/beszel/main/install.sh | bash"
+  args:
+    creates: /opt/beszel-agent/beszel-agent
+  ignore_errors: yes
+
+- name: "Ensure Beszel is started"
+  systemd:
+    name: beszel-agent
+    state: started
+    enabled: yes
+  ignore_errors: yes

@@ -1,0 +1,5 @@
+---
+# tasks/main.yml for ai_workstation role
+- name: "Include ai_workstation component tasks"
+  include_tasks: "{{ ai_component }}.yml"
+  when: ai_component is defined

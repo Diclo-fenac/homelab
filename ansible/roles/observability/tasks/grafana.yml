@@ -1,0 +1,12 @@
+---
+# tasks/grafana.yml
+- name: "Install Grafana"
+  apt:
+    name: grafana
+    state: present
+
+- name: "Ensure Grafana is started and enabled"
+  systemd:
+    name: grafana-server
+    state: started
+    enabled: yes

@@ -1,0 +1,13 @@
+---
+# tasks/gpu.yml
+- name: "Install base GPU dependencies"
+  apt:
+    name:
+      - pciutils
+      - lshw
+    state: present
+    update_cache: yes
+
+- name: "Configure GPU drivers (Placeholder)"
+  debug:
+    msg: "GPU driver installation is model-specific. Add tasks here for nvidia-driver, cuda-toolkit, etc."

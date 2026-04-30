@@ -1,0 +1,32 @@
+---
+# tasks/main.yml for docker_host role
+- name: "Include docker component tasks"
+  include_tasks: "{{ docker_component }}.yml"
+  when: docker_component is defined
+
+- name: "Install Docker dependencies"
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - gnupg
+    state: present
+    update_cache: yes
+  when: docker_component is not defined
+
+- name: "Install Docker"
+  shell: |
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+  args:
+    creates: /usr/bin/docker
+  when: docker_component is not defined
+
+- name: "Ensure Docker is started"
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+  when: docker_component is not defined

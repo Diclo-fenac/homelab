@@ -1,0 +1,11 @@
+---
+# tasks/main.yml for identity role
+- name: "Ensure Authentik directory exists"
+  file:
+    path: /opt/authentik
+    state: directory
+    mode: '0755'
+
+- name: "Deploy Authentik"
+  debug:
+    msg: "Here you would typically template a docker-compose.yml for Authentik and run `docker compose up -d`. This is a placeholder."

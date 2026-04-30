@@ -1,0 +1,14 @@
+---
+# tasks/main.yml for observability role
+- name: "Include observability component tasks"
+  include_tasks: "{{ observability_component }}.yml"
+  when: observability_component is defined
+
+- name: "Install base observability dependencies"
+  apt:
+    name:
+      - curl
+      - gnupg2
+    state: present
+    update_cache: yes
+  when: observability_component is not defined

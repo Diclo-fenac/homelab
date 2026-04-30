@@ -1,0 +1,12 @@
+---
+# tasks/node_exporter.yml
+- name: "Install Node Exporter"
+  apt:
+    name: prometheus-node-exporter
+    state: present
+
+- name: "Ensure Node Exporter is started and enabled"
+  systemd:
+    name: prometheus-node-exporter
+    state: started
+    enabled: yes
